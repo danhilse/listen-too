@@ -2,9 +2,10 @@
 
 import type {
   Track,
-  
+  SpotifyTrack,
   TimeRangeOption,
-  
+  TimeRangeValue,
+  TopTracksResponse,
   PaginationParams,
   PlaylistResponse,
   
@@ -83,7 +84,7 @@ export const PLAYLIST_NAME = 'My Most Played Songs';
 export const TIME_RANGES: TimeRangeOption[] = [
   {
     value: 'short_term',
-    label: 'last month.',
+    label: 'last 4 weeks.',
     spotifyRange: 'short_term'
   },
   {
@@ -98,9 +99,10 @@ export const TIME_RANGES: TimeRangeOption[] = [
   }
 ];
 
+
 export async function getTopSongs(
   token: string,
-  timeRange: string,
+  timeRange: TimeRangeValue,
   { limit = 20, offset = 0 } = {}
 ): Promise<Track[]> {
   const response = await fetch(
@@ -116,13 +118,21 @@ export async function getTopSongs(
     throw new Error('Failed to fetch top songs');
   }
 
-  const data = await response.json();
+  const data: TopTracksResponse = await response.json();
   
-  return data.items.map(track => ({
+  if (!data.items || data.items.length === 0) {
+    throw new Error('No tracks returned from Spotify API');
+  }
+
+  return data.items.map((track: SpotifyTrack) => ({
     id: track.id,
     name: track.name,
     uri: track.uri,
-    artists: track.artists,
+    artists: track.artists.map(artist => ({
+      ...artist,
+      genres: [], // Will be populated by artist details fetch
+      images: []  // Will be populated by artist details fetch
+    })),
     album: track.album,
     source: 'top'
   }));
@@ -145,7 +155,7 @@ export async function loadMoreSongsUntilTarget(
         offset: currentLikedSongs.length, 
         limit: batchSize 
       }),
-      getTopSongs(token, 'all_time', { 
+      getTopSongs(token, 'long_term', { 
         offset: currentTopSongs.length, 
         limit: batchSize 
       })
@@ -216,34 +226,28 @@ async function generatePlaylistCoverArt(
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   
-  if (!ctx) {
-    throw new Error('Failed to get canvas context');
-  }
+  if (!ctx) throw new Error('Failed to get canvas context');
   
-  // Simple canvas setup at 640x640
   canvas.width = size;
   canvas.height = size;
-  
-  // Basic black background
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, size, size);
-  
-  // Get unique albums with highest res images
-  const uniqueAlbums = new Map();
+
+  // Count album frequencies
+  const albumCounts = new Map<string, { count: number; imageUrl: string }>();
   tracks.forEach((track: Track) => {
     if (track.album?.images?.length > 0) {
+      const count = albumCounts.get(track.album.id)?.count || 0;
       const highestResImage = [...track.album.images]
         .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-      uniqueAlbums.set(track.album.id, { ...track.album, selectedImage: highestResImage });
+      albumCounts.set(track.album.id, { count: count + 1, imageUrl: highestResImage.url });
     }
   });
-  
-  const albums = Array.from(uniqueAlbums.values()).slice(0, 16);
-  const gridSize = Math.min(4, Math.ceil(Math.sqrt(albums.length)));
-  const tileSize = size / gridSize;
 
+  const gridSize = tracks.length <= 10 ? 3 : tracks.length <= 20 ? 4 : 7;
+  const tileSize = size / gridSize;
+  
   try {
-    // Load font first
     await document.fonts.load(`bold ${Math.round(size * 0.12)}px Inter`);
     
     const loadImage = (url: string): Promise<HTMLImageElement> => {
@@ -255,42 +259,68 @@ async function generatePlaylistCoverArt(
         img.src = url;
       });
     };
-    
-    // Load and draw images
-    const images = await Promise.all(
-      albums.map(album => loadImage(album.selectedImage.url))
-    );
-    
-    images.forEach((img, index) => {
-      const row = Math.floor(index / gridSize);
-      const col = index % gridSize;
-      const x = col * tileSize;
-      const y = row * tileSize;
-      ctx.drawImage(img, x, y, tileSize, tileSize);
-    });
 
-    // Simple overlay
+    const albums = Array.from(albumCounts.entries())
+      .sort((a, b) => b[1].count - a[1].count);
+    
+    const images = await Promise.all(
+      albums.map(([, data]) => loadImage(data.imageUrl))
+    );
+
+    const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(false));
+    let imageIndex = 0;
+
+    // Place 2x2 tiles first
+    for (let y = 0; y < gridSize - 1; y++) {
+      for (let x = 0; x < gridSize - 1; x++) {
+        if (imageIndex >= images.length) break;
+        
+        if (!grid[y][x] && !grid[y][x + 1] && !grid[y + 1][x] && !grid[y + 1][x + 1]) {
+          if (albums[imageIndex][1].count > 1) {
+            ctx.drawImage(
+              images[imageIndex],
+              x * tileSize,
+              y * tileSize,
+              tileSize * 2,
+              tileSize * 2
+            );
+            grid[y][x] = grid[y][x + 1] = grid[y + 1][x] = grid[y + 1][x + 1] = true;
+          }
+          imageIndex++;
+        }
+      }
+    }
+
+    // Fill remaining spaces with 1x1 tiles
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        if (!grid[y][x] && imageIndex < images.length) {
+          ctx.drawImage(
+            images[imageIndex % images.length],
+            x * tileSize,
+            y * tileSize,
+            tileSize,
+            tileSize
+          );
+          grid[y][x] = true;
+          imageIndex++;
+        }
+      }
+    }
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, size, size);
     
-    // Text settings
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
-    // Draw text
     ctx.font = `bold ${Math.round(size * 0.12)}px Inter`;
     ctx.fillText('listen too *', size / 2, size * 0.45);
     
-    // ctx.font = `${Math.round(size * 0.15)}px Inter`;
-    // ctx.fillText('*', size / 2, size * 0.6);
-    
-    // Simple conversion with 0.9 quality
     const base64Image = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
     
-    // Upload with basic retry logic
+    // Upload with retry logic
     const maxRetries = 3;
-    
     for (let i = 0; i < maxRetries; i++) {
       try {
         const response = await fetch(
@@ -305,39 +335,28 @@ async function generatePlaylistCoverArt(
           }
         );
         
-        if (response.ok) {
-          return true;
-        }
+        if (response.ok) return true;
         
-        // For 502 errors, wait and retry
         if (response.status === 502 && i < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
         }
         
-        // For other errors, throw immediately
-        const errorText = await response.text();
         throw new Error(
-          `Failed to upload playlist cover image. Status: ${response.status}. ` +
-          `Response: ${errorText}`
+          `Failed to upload playlist cover image. Status: ${response.status}. Response: ${await response.text()}`
         );
       } catch (error) {
-        if (i === maxRetries - 1) {
-          throw error;
-        }
+        if (i === maxRetries - 1) throw error;
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
     return true;
-    
   } catch (error) {
     console.error('Error in generatePlaylistCoverArt:', error);
     throw error;
   }
 }
-
-
 // Update createPlaylist function to include cover art generation
 export async function createPlaylist(
   token: string,
