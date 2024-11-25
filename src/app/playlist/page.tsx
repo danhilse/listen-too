@@ -1,11 +1,11 @@
-// src/app/playlist/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { getTopSongs, createPlaylist } from '@/utils/spotify';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ExternalLink, Copy, CheckCircle2 } from 'lucide-react';
 import type { PlaylistConfig } from '@/types/spotify';
 
 export default function PlaylistPage() {
@@ -13,15 +13,14 @@ export default function PlaylistPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const createUserPlaylist = async () => {
-      console.log('Starting playlist creation...');
       const token = sessionStorage.getItem('spotify_token');
       const configStr = sessionStorage.getItem('playlist_config');
 
       if (!token || !configStr) {
-        console.error('Missing token or config:', { token: !!token, config: !!configStr });
         setError('Missing authentication or configuration');
         return;
       }
@@ -29,10 +28,6 @@ export default function PlaylistPage() {
       try {
         setIsLoading(true);
         const config = JSON.parse(configStr) as PlaylistConfig;
-        console.log('Using config:', config);
-
-        // Get user's profile
-        console.log('Fetching user profile...');
         const userResponse = await fetch('https://api.spotify.com/v1/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -42,25 +37,14 @@ export default function PlaylistPage() {
         }
         
         const userData = await userResponse.json();
-        console.log('User data received:', userData.id);
-
-        // Get top tracks with the specified time range
-        console.log('Fetching top tracks...');
         const topTracks = await getTopSongs(
           token,
           config.timeRange,
           { limit: config.numberOfSongs }
         );
-        console.log(`Fetched ${topTracks.length} tracks`);
-
-        // Create playlist
-        console.log('Creating playlist...');
         const { url } = await createPlaylist(token, userData.id, topTracks);
-        console.log('Playlist created:', url);
         setPlaylistUrl(url);
-
       } catch (err) {
-        console.error('Playlist creation error:', err);
         setError(err instanceof Error ? err.message : 'Failed to create playlist');
       } finally {
         setIsLoading(false);
@@ -69,64 +53,101 @@ export default function PlaylistPage() {
 
     createUserPlaylist();
   }, [router]);
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="text-red-500 mb-4">Error: {error}</div>
-        <Button 
-          onClick={() => {
-            sessionStorage.clear();
-            router.push('/');
-          }}
-        >
-          Try Again
-        </Button>
-      </div>
-    );
-  }
+
+  const handleCopyLink = async () => {
+    if (playlistUrl) {
+      await navigator.clipboard.writeText(playlistUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
-    <div className="min-h-screen p-8 bg-zinc-950">
-      <div className="max-w-4xl mx-auto">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-            <div className="text-lg">Creating your playlist...</div>
-          </div>
-        ) : playlistUrl ? (
-          <div className="space-y-8">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold">Your Playlist is Ready!</h1>
-              <div className="space-x-4">
-                <Button
-                  onClick={() => window.open(playlistUrl, '_blank')}
-                  className="bg-[#1DB954] hover:bg-[#1ed760]"
-                >
-                  Open in Spotify
-                </Button>
-                <Button
+    <div className="min-h-screen bg-[#111215] relative overflow-hidden">
+      {/* Background Image */}
+      <div className="absolute top-0 right-0 h-full w-[70%] z-0">
+        <Image
+          src="/mountain.jpg"
+          alt="Colorful mountain landscape"
+          fill
+          className="object-cover"
+          priority
+        />
+      </div>
+
+      {/* Gradient overlay */}
+      <div className="absolute inset-y-0 left-0 w-[680px] bg-gradient-to-r from-[#111215] via-[#111215]/80 to-transparent z-10" />
+
+      {/* Content Container */}
+      <div className="relative min-h-screen pl-8 pt-4 pb-4 pr-8 flex flex-col z-20">
+        {/* Logo */}
+        <div className="text-white text-2xl font-medium mb-12">
+          listen too *
+        </div>
+
+        {/* Main Content */}
+        <main className="flex-1">
+          <div className="max-w-[680px] mx-auto">
+            {error ? (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-white">Something went wrong</h2>
+                <p className="text-zinc-300">{error}</p>
+                <Button 
                   onClick={() => {
-                    navigator.clipboard.writeText(playlistUrl);
+                    sessionStorage.clear();
+                    router.push('/');
                   }}
-                  variant="outline"
+                  className="bg-[#1DB954] hover:bg-[#1ed760] text-white"
                 >
-                  Copy Link
+                  Try Again
                 </Button>
               </div>
-            </div>
+            ) : isLoading ? (
+              <div className="flex flex-col items-center space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-[#1DB954]" />
+                <p className="text-lg text-white">Creating your playlist...</p>
+              </div>
+            ) : playlistUrl ? (
+              <div className="space-y-8">
+                <div className="space-y-6">
+                  <h1 className="text-4xl font-bold text-white">Your Playlist is Ready!</h1>
+                  <div className="flex flex-wrap gap-4">
+                    <Button
+                      onClick={() => window.open(playlistUrl, '_blank')}
+                      className="bg-[#1DB954] hover:bg-[#1ed760] text-white"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Open in Spotify
+                    </Button>
+                    <Button
+                      onClick={handleCopyLink}
+                      variant="outline"
+                      className="border-white text-white hover:bg-white/10"
+                    >
+                      {copied ? (
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Copy className="w-4 h-4 mr-2" />
+                      )}
+                      {copied ? 'Copied!' : 'Copy Link'}
+                    </Button>
+                  </div>
+                </div>
 
-            <div className="aspect-video w-full">
-              <iframe
-                src={`https://open.spotify.com/embed/playlist/${playlistUrl.split('/').pop()}`}
-                width="100%"
-                height="100%"
-                frameBorder="0"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                className="rounded-lg"
-              />
-            </div>
+                <div className="bg-black/20 rounded-lg overflow-hidden h-[480px] w-full">
+                  <iframe
+                    src={`https://open.spotify.com/embed/playlist/${playlistUrl.split('/').pop()}`}
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    className="rounded-lg"
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </main>
       </div>
     </div>
   );

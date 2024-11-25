@@ -2,9 +2,9 @@
 
 import type {
   Track,
-  TimeRangeValue,
+  
   TimeRangeOption,
-  TopTracksResponse,
+  
   PaginationParams,
   PlaylistResponse,
   
@@ -15,8 +15,6 @@ import type {
 } from '@/types/spotify';
 
 import { categorizeGenre } from './genres';
-
-export const PLAYLIST_NAME = 'My Most Played Songs';
 
 // Add the missing fetchArtistDetails function
 async function fetchArtistDetails(token: string, artistId: string): Promise<SpotifyArtistDetails> {
@@ -80,64 +78,33 @@ export async function getLikedSongs(
   }));
 }
 
+export const PLAYLIST_NAME = 'My Most Played Songs';
+
 export const TIME_RANGES: TimeRangeOption[] = [
   {
-    value: 'today',
-    label: '24 hours',
-    spotifyRange: 'short_term',
-    daysToInclude: 1
+    value: 'short_term',
+    label: 'last month.',
+    spotifyRange: 'short_term'
   },
   {
-    value: 'this_week',
-    label: '7 days',
-    spotifyRange: 'short_term',
-    daysToInclude: 7
+    value: 'medium_term',
+    label: 'last 6 months.',
+    spotifyRange: 'medium_term'
   },
   {
-    value: 'this_month',
-    label: '30 days',
-    spotifyRange: 'short_term',
-    daysToInclude: 30
-  },
-  {
-    value: 'last_3_months',
-    label: '3 months',
-    spotifyRange: 'medium_term',
-    daysToInclude: 90
-  },
-  {
-    value: 'last_6_months',
-    label: '6 months',
-    spotifyRange: 'medium_term',
-    daysToInclude: 180
-  },
-  {
-    value: 'last_year',
-    label: '12 months',
-    spotifyRange: 'long_term',
-    daysToInclude: 365
-  },
-  {
-    value: 'all_time',
-    label: 'All time',
+    value: 'long_term',
+    label: 'last year.',
     spotifyRange: 'long_term'
   }
 ];
 
 export async function getTopSongs(
   token: string,
-  timeRange: TimeRangeValue,
-  { limit = 10, offset = 0 }: PaginationParams = {}
+  timeRange: string,
+  { limit = 20, offset = 0 } = {}
 ): Promise<Track[]> {
-  const rangeConfig = TIME_RANGES.find(r => r.value === timeRange);
-  if (!rangeConfig) {
-    throw new Error('Invalid time range specified');
-  }
-
-  const fetchLimit = rangeConfig.daysToInclude ? Math.ceil(limit * 1.5) : limit;
-
   const response = await fetch(
-    `https://api.spotify.com/v1/me/top/tracks?limit=${fetchLimit}&offset=${offset}&time_range=${rangeConfig.spotifyRange}`,
+    `https://api.spotify.com/v1/me/top/tracks?limit=${limit}&offset=${offset}&time_range=${timeRange}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -149,41 +116,16 @@ export async function getTopSongs(
     throw new Error('Failed to fetch top songs');
   }
 
-  const data: TopTracksResponse = await response.json();
+  const data = await response.json();
   
-  const enrichedTracks = await Promise.all(
-    data.items.map(async (track) => {
-      const artistDetails = await Promise.all(
-        track.artists.map(artist => fetchArtistDetails(token, artist.id))
-      );
-
-      return {
-        id: track.id,
-        name: track.name,
-        uri: track.uri,
-        artists: artistDetails,
-        album: track.album,
-        added_at: new Date().toISOString()
-      };
-    })
-  );
-
-  let filteredTracks = enrichedTracks;
-
-  if (rangeConfig.daysToInclude) {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - rangeConfig.daysToInclude);
-    
-    filteredTracks = enrichedTracks
-      .filter(track => new Date(track.added_at) >= cutoffDate);
-  }
-
-  return filteredTracks
-    .slice(0, limit)
-    .map(track => ({
-      ...track,
-      source: 'top'
-    }));
+  return data.items.map(track => ({
+    id: track.id,
+    name: track.name,
+    uri: track.uri,
+    artists: track.artists,
+    album: track.album,
+    source: 'top'
+  }));
 }
 
 export async function loadMoreSongsUntilTarget(
@@ -265,8 +207,138 @@ export async function verifyPremiumUser(token: string): Promise<boolean> {
   const profile: SpotifyUserProfile = await response.json();
   return profile.product === 'premium';
 }
+async function generatePlaylistCoverArt(
+  tracks: Track[],
+  token: string,
+  playlistId: string
+): Promise<boolean> {
+  const size = 640;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) {
+    throw new Error('Failed to get canvas context');
+  }
+  
+  // Simple canvas setup at 640x640
+  canvas.width = size;
+  canvas.height = size;
+  
+  // Basic black background
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, size, size);
+  
+  // Get unique albums with highest res images
+  const uniqueAlbums = new Map();
+  tracks.forEach((track: Track) => {
+    if (track.album?.images?.length > 0) {
+      const highestResImage = [...track.album.images]
+        .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+      uniqueAlbums.set(track.album.id, { ...track.album, selectedImage: highestResImage });
+    }
+  });
+  
+  const albums = Array.from(uniqueAlbums.values()).slice(0, 16);
+  const gridSize = Math.min(4, Math.ceil(Math.sqrt(albums.length)));
+  const tileSize = size / gridSize;
 
-// Update the createPlaylist function
+  try {
+    // Load font first
+    await document.fonts.load(`bold ${Math.round(size * 0.12)}px Inter`);
+    
+    const loadImage = (url: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = (e) => reject(new Error(`Failed to load image from ${url}: ${e}`));
+        img.src = url;
+      });
+    };
+    
+    // Load and draw images
+    const images = await Promise.all(
+      albums.map(album => loadImage(album.selectedImage.url))
+    );
+    
+    images.forEach((img, index) => {
+      const row = Math.floor(index / gridSize);
+      const col = index % gridSize;
+      const x = col * tileSize;
+      const y = row * tileSize;
+      ctx.drawImage(img, x, y, tileSize, tileSize);
+    });
+
+    // Simple overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(0, 0, size, size);
+    
+    // Text settings
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Draw text
+    ctx.font = `bold ${Math.round(size * 0.12)}px Inter`;
+    ctx.fillText('listen too *', size / 2, size * 0.45);
+    
+    // ctx.font = `${Math.round(size * 0.15)}px Inter`;
+    // ctx.fillText('*', size / 2, size * 0.6);
+    
+    // Simple conversion with 0.9 quality
+    const base64Image = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+    
+    // Upload with basic retry logic
+    const maxRetries = 3;
+    
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const response = await fetch(
+          `https://api.spotify.com/v1/playlists/${playlistId}/images`,
+          {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'image/jpeg'
+            },
+            body: base64Image
+          }
+        );
+        
+        if (response.ok) {
+          return true;
+        }
+        
+        // For 502 errors, wait and retry
+        if (response.status === 502 && i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        // For other errors, throw immediately
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to upload playlist cover image. Status: ${response.status}. ` +
+          `Response: ${errorText}`
+        );
+      } catch (error) {
+        if (i === maxRetries - 1) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    return true;
+    
+  } catch (error) {
+    console.error('Error in generatePlaylistCoverArt:', error);
+    throw error;
+  }
+}
+
+
+// Update createPlaylist function to include cover art generation
 export async function createPlaylist(
   token: string,
   userId: string,
@@ -343,6 +415,9 @@ export async function createPlaylist(
         throw new Error(errorData.error?.message || 'Failed to add tracks to playlist');
       }
     }
+
+    // Generate and upload cover art
+    await generatePlaylistCoverArt(tracks, token, playlist.id);
 
     return { url: playlist.external_urls.spotify };
   } catch (error) {

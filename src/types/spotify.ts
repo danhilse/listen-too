@@ -45,21 +45,21 @@ export interface SpotifyImage {
   }
   
   // Time range related types
-  export type SpotifyTimeRange = 'short_term' | 'medium_term' | 'long_term';
+  export type TimeRangeValue = 'short_term' | 'medium_term' | 'long_term';
   
-  export type TimeRangeValue = 
-    | 'today'
-    | 'this_week'
-    | 'this_month'
-    | 'last_3_months'
-    | 'last_6_months'
-    | 'last_year'
-    | 'all_time';
+//   export type TimeRangeValue = 
+//     | 'today'
+//     | 'this_week'
+//     | 'this_month'
+//     | 'last_3_months'
+//     | 'last_6_months'
+//     | 'last_year'
+//     | 'all_time';
   
   export interface TimeRangeOption {
     value: TimeRangeValue;
     label: string;
-    spotifyRange: SpotifyTimeRange;
+    spotifyRange: TimeRangeValue;
     daysToInclude?: number;
   }
   

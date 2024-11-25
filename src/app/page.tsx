@@ -11,14 +11,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { initiateSpotifyLogin } from '@/utils/auth';
-import { Github, Linkedin } from 'lucide-react';
-import { TimeRangeValue } from '@/types/spotify';
 import { SpotifyButton } from '@/components/spotify/SpotifyButton';
 import { TIME_RANGES } from '@/utils/spotify';
 
 export default function Home() {
   const [songCount, setSongCount] = useState("20");
-  const [timeRange, setTimeRange] = useState<TimeRangeValue>("this_month");
+  const [timeRange, setTimeRange] = useState("medium_term");
 
   const handleLogin = () => {
     sessionStorage.setItem('playlist_config', JSON.stringify({
@@ -29,9 +27,8 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
-      {/* Background Image */}
-      <div className="absolute top-0 right-0 h-full w-3/5">
+    <div className="min-h-screen bg-[#111215] relative overflow-hidden">
+      <div className="absolute top-0 right-0 h-full w-[70%] z-0 max-md:w-full max-md:h-[45%] max-md:top-auto max-md:bottom-0">
         <Image
           src="/mountain.jpg"
           alt="Colorful mountain landscape"
@@ -39,69 +36,67 @@ export default function Home() {
           className="object-cover"
           priority
         />
-        {/* Gradient overlay to help text readability */}
-        <div className="absolute inset-0 bg-gradient-to-r from-zinc-950 via-zinc-950/50 to-transparent" />
       </div>
 
-      {/* Content Container */}
-      <div className="relative min-h-screen p-8 flex flex-col">
-        {/* Logo */}
+      <div className="absolute inset-y-0 left-0 w-[680px] bg-gradient-to-r from-[#111215] via-[#111215]/80 to-transparent z-10 max-md:w-full max-md:h-full max-md:bg-gradient-to-b" />
+
+      <div className="relative min-h-screen pl-8 pt-4 pb-4 pr-8 flex flex-col z-20 max-md:px-6">
         <div className="text-white text-2xl font-medium mb-12">
           listen too *
         </div>
 
-        {/* Main Content */}
-        <main className="flex-1 flex items-center">
-        <div className="w-full max-w-2xl">
-          <div className="space-y-8">
-            <h1 className="text-5xl font-bold text-white leading-tight">
-              Create a playlist of your most played songs, ready to share in seconds.
-            </h1>
-            
-            <div className="space-y-6">
-              <div className="flex items-center flex-wrap gap-2 text-lg text-zinc-300">
-                <span>I want to share my</span>
-                <Select value={songCount} onValueChange={setSongCount}>
-                  <SelectTrigger className="w-[180px] bg-transparent border-zinc-800">
-                    <SelectValue placeholder="Select count" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[10, 20, 30, 40, 50].map(num => (
-                      <SelectItem key={num} value={num.toString()}>
-                        {num} most-played songs
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span>from</span>
-                <Select value={timeRange} onValueChange={(value: TimeRangeValue) => setTimeRange(value)}>
-                  <SelectTrigger className="w-[180px] bg-transparent border-zinc-800">
-                    <SelectValue placeholder="Select time range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_RANGES.map(range => (
-                      <SelectItem key={range.value} value={range.value}>
-                        {range.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <main className="flex-1 flex items-center max-md:items-start">
+          <div className="min-w-[60%] flex justify-center max-md:w-full max-md:min-w-0">
+            <div className="max-w-[680px] w-full space-y-8">
+              <h1 className="text-5xl font-bold text-white leading-tight max-md:text-4xl">
+                Create a playlist of your most played songs, ready to share in seconds.
+              </h1>
+              
+              <div className="w-fit max-md:w-full">
+                <div className="flex items-center flex-wrap gap-2 text-lg text-zinc-300 mb-6 max-md:flex-col max-md:items-start max-md:gap-4">
+                  <span>I want to share my</span>
+                  <Select value={songCount} onValueChange={setSongCount}>
+                    <SelectTrigger className="w-[200px] bg-transparent border-white bg-[#111215]/10 backdrop-blur-md border-white max-md:w-full">
+                      <SelectValue placeholder="Select count" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#111215]/90 backdrop-blur-md border-white">
+                      {[10, 20, 50].map(num => (
+                        <SelectItem key={num} value={num.toString()}>
+                          {num} most-played songs
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span>from the</span>
+                  <Select value={timeRange} onValueChange={setTimeRange}>
+                    <SelectTrigger className="w-[150px] bg-transparent border-white bg-[#111215]/10 backdrop-blur-md border-white max-md:w-full">
+                      <SelectValue placeholder="Select time range" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#111215]/90 backdrop-blur-md border-white">
+                      {TIME_RANGES.map(range => (
+                        <SelectItem key={range.value} value={range.value}>
+                          {range.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <SpotifyButton onClick={handleLogin} />
+                <div className="flex justify-center w-full">
+                  <SpotifyButton onClick={handleLogin} />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
       
-        {/* Footer Links */}
-        <div className="flex gap-4 text-zinc-500">
+        <div className="flex gap-8 text-zinc-500/50 mt-12 max-md:gap-4 max-md:mt-8">
           <div className="text-sm">Built by Daniel Hilse</div>
-          <Link href="https://github.com/yourusername" className="hover:text-zinc-300 transition-colors">
-            <Github className="h-5 w-5" />
+          <Link href="https://github.com/yourusername" className="text-sm hover:text-zinc-300 transition-colors">
+            GitHub
           </Link>
-          <Link href="https://linkedin.com/in/yourusername" className="hover:text-zinc-300 transition-colors">
-            <Linkedin className="h-5 w-5" />
+          <Link href="https://linkedin.com/in/yourusername" className="text-sm hover:text-zinc-300 transition-colors">
+            LinkedIn
           </Link>
         </div>
       </div>

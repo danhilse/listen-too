@@ -36,7 +36,8 @@ export const spotifyConfig: SpotifyConfig = {
     'user-library-read',
     'user-top-read',
     'playlist-modify-public',
-    'playlist-modify-private'
+    'playlist-modify-private',
+    'ugc-image-upload'  // Add this scope for playlist image uploads
   ] as const
 };
 
