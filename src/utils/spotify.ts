@@ -270,7 +270,7 @@ async function generatePlaylistCoverArt(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.round(size * 0.12)}px Inter`;
-    ctx.fillText('listen too *', size / 2, size * 0.45);
+    ctx.fillText('listen too *', size / 2 + size * .012, size * 0.45);
     
     const base64Image = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
     
