@@ -233,36 +233,104 @@ async function generatePlaylistCoverArt(
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, size, size);
 
-  const gridSize = tracks.length <= 10 ? 3 : tracks.length <= 20 ? 5 : 7;
-  const tileSize = size / gridSize;
+  const albumCounts = new Map<string, { count: number; imageUrl: string }>();
+  tracks.forEach((track: Track) => {
+    if (track.album?.images?.length > 0) {
+      const count = albumCounts.get(track.album.id)?.count || 0;
+      const highestResImage = [...track.album.images]
+        .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+      albumCounts.set(track.album.id, { count: count + 1, imageUrl: highestResImage.url });
+    }
+  });
 
+  const gridSize = tracks.length <= 10 ? 3 : tracks.length <= 20 ? 4 : 7;
+  const tileSize = size / gridSize;
+  
   try {
     await document.fonts.load(`bold ${Math.round(size * 0.12)}px Inter`);
+    
+    const loadImage = (url: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = (e) => reject(new Error(`Failed to load image from ${url}: ${e}`));
+        img.src = url;
+      });
+    };
 
-    // Get all album images
+    const albums = Array.from(albumCounts.entries())
+      .sort((a, b) => b[1].count - a[1].count);
+    
     const images = await Promise.all(
-      tracks.map(track => {
-        if (!track.album?.images?.length) return null;
-        const highestRes = [...track.album.images].sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-        return new Promise<HTMLImageElement>((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error(`Failed to load image from ${highestRes.url}`));
-          img.src = highestRes.url;
-        });
-      }).filter((img): img is Promise<HTMLImageElement> => img !== null)
+      albums.map(([, data]) => loadImage(data.imageUrl))
     );
 
-    // Fill grid
+    let posX = 0;
+    let posY = 0;
+    const used = new Set<string>();
+
+    albums.forEach((album, index) => {
+      if (posY >= gridSize || !images[index]) return;
+
+      const count = album[1].count;
+      const tileSpan = count > 1 ? 2 : 1;
+
+      if (tileSpan === 2) {
+        // Check if we have enough space for a 2x2 tile
+        if (posX + 2 <= gridSize && posY + 2 <= gridSize) {
+          ctx.drawImage(
+            images[index],
+            posX * tileSize,
+            posY * tileSize,
+            tileSize * 2,
+            tileSize * 2
+          );
+          used.add(`${posX},${posY}`);
+          used.add(`${posX + 1},${posY}`);
+          used.add(`${posX},${posY + 1}`);
+          used.add(`${posX + 1},${posY + 1}`);
+          posX += 2;
+        } else {
+          // Not enough space for 2x2, place 1x1
+          ctx.drawImage(
+            images[index],
+            posX * tileSize,
+            posY * tileSize,
+            tileSize,
+            tileSize
+          );
+          used.add(`${posX},${posY}`);
+          posX += 1;
+        }
+      } else {
+        ctx.drawImage(
+          images[index],
+          posX * tileSize,
+          posY * tileSize,
+          tileSize,
+          tileSize
+        );
+        used.add(`${posX},${posY}`);
+        posX += 1;
+      }
+
+      if (posX >= gridSize) {
+        posX = 0;
+        posY++;
+      }
+    });
+
+    // Fill remaining spaces
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
-        const index = (y * gridSize + x) % images.length;
-        ctx.drawImage(images[index], x * tileSize, y * tileSize, tileSize, tileSize);
+        if (!used.has(`${x},${y}`)) {
+          const img = images[Math.floor(Math.random() * images.length)];
+          ctx.drawImage(img, x * tileSize, y * tileSize, tileSize, tileSize);
+        }
       }
     }
 
-    // Overlay and text
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, size, size);
     
@@ -270,11 +338,10 @@ async function generatePlaylistCoverArt(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.round(size * 0.12)}px Inter`;
-    ctx.fillText('listen too *', size / 2 + size * .012, size * 0.45);
+    ctx.fillText('listen too *', size / 2, size * 0.5);
     
     const base64Image = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
     
-    // Upload
     const maxRetries = 3;
     for (let i = 0; i < maxRetries; i++) {
       try {
@@ -291,11 +358,15 @@ async function generatePlaylistCoverArt(
         );
         
         if (response.ok) return true;
+        
         if (response.status === 502 && i < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
         }
-        throw new Error(`Failed to upload playlist cover image. Status: ${response.status}`);
+        
+        throw new Error(
+          `Failed to upload playlist cover image. Status: ${response.status}. Response: ${await response.text()}`
+        );
       } catch (error) {
         if (i === maxRetries - 1) throw error;
         await new Promise(resolve => setTimeout(resolve, 1000));

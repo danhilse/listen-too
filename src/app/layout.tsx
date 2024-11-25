@@ -4,8 +4,15 @@ import { Inter } from 'next/font/google'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Spotify Playlist Generator',
-  description: 'Create playlists from your top and liked songs',
+  title: 'Listen Too | Spotify Playlist Generator',
+  description: 'Create playlists from your top songs',
+  openGraph: {
+    images: [{
+      url: '/og-image.png', // or absolute URL
+      width: 1200,
+      height: 630,
+    }],
+  },
 }
 
 export default function RootLayout({
