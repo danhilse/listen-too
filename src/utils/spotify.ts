@@ -233,81 +233,36 @@ async function generatePlaylistCoverArt(
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, size, size);
 
-  // Count album frequencies
-  const albumCounts = new Map<string, { count: number; imageUrl: string }>();
-  tracks.forEach((track: Track) => {
-    if (track.album?.images?.length > 0) {
-      const count = albumCounts.get(track.album.id)?.count || 0;
-      const highestResImage = [...track.album.images]
-        .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-      albumCounts.set(track.album.id, { count: count + 1, imageUrl: highestResImage.url });
-    }
-  });
-
-  const gridSize = tracks.length <= 10 ? 3 : tracks.length <= 20 ? 4 : 7;
+  const gridSize = tracks.length <= 10 ? 3 : tracks.length <= 20 ? 5 : 7;
   const tileSize = size / gridSize;
-  
+
   try {
     await document.fonts.load(`bold ${Math.round(size * 0.12)}px Inter`);
-    
-    const loadImage = (url: string): Promise<HTMLImageElement> => {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve(img);
-        img.onerror = (e) => reject(new Error(`Failed to load image from ${url}: ${e}`));
-        img.src = url;
-      });
-    };
 
-    const albums = Array.from(albumCounts.entries())
-      .sort((a, b) => b[1].count - a[1].count);
-    
+    // Get all album images
     const images = await Promise.all(
-      albums.map(([, data]) => loadImage(data.imageUrl))
+      tracks.map(track => {
+        if (!track.album?.images?.length) return null;
+        const highestRes = [...track.album.images].sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+        return new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error(`Failed to load image from ${highestRes.url}`));
+          img.src = highestRes.url;
+        });
+      }).filter((img): img is Promise<HTMLImageElement> => img !== null)
     );
 
-    const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(false));
-    let imageIndex = 0;
-
-    // Place 2x2 tiles first
-    for (let y = 0; y < gridSize - 1; y++) {
-      for (let x = 0; x < gridSize - 1; x++) {
-        if (imageIndex >= images.length) break;
-        
-        if (!grid[y][x] && !grid[y][x + 1] && !grid[y + 1][x] && !grid[y + 1][x + 1]) {
-          if (albums[imageIndex][1].count > 1) {
-            ctx.drawImage(
-              images[imageIndex],
-              x * tileSize,
-              y * tileSize,
-              tileSize * 2,
-              tileSize * 2
-            );
-            grid[y][x] = grid[y][x + 1] = grid[y + 1][x] = grid[y + 1][x + 1] = true;
-          }
-          imageIndex++;
-        }
-      }
-    }
-
-    // Fill remaining spaces with 1x1 tiles
+    // Fill grid
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
-        if (!grid[y][x] && imageIndex < images.length) {
-          ctx.drawImage(
-            images[imageIndex % images.length],
-            x * tileSize,
-            y * tileSize,
-            tileSize,
-            tileSize
-          );
-          grid[y][x] = true;
-          imageIndex++;
-        }
+        const index = (y * gridSize + x) % images.length;
+        ctx.drawImage(images[index], x * tileSize, y * tileSize, tileSize, tileSize);
       }
     }
 
+    // Overlay and text
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, size, size);
     
@@ -319,7 +274,7 @@ async function generatePlaylistCoverArt(
     
     const base64Image = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
     
-    // Upload with retry logic
+    // Upload
     const maxRetries = 3;
     for (let i = 0; i < maxRetries; i++) {
       try {
@@ -336,15 +291,11 @@ async function generatePlaylistCoverArt(
         );
         
         if (response.ok) return true;
-        
         if (response.status === 502 && i < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
         }
-        
-        throw new Error(
-          `Failed to upload playlist cover image. Status: ${response.status}. Response: ${await response.text()}`
-        );
+        throw new Error(`Failed to upload playlist cover image. Status: ${response.status}`);
       } catch (error) {
         if (i === maxRetries - 1) throw error;
         await new Promise(resolve => setTimeout(resolve, 1000));
