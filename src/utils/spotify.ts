@@ -266,69 +266,48 @@ async function generatePlaylistCoverArt(
       albums.map(([, data]) => loadImage(data.imageUrl))
     );
 
+    // First pass: place 2x2 tiles for frequent albums
     let posX = 0;
     let posY = 0;
-    const used = new Set<string>();
-
+    
     albums.forEach((album, index) => {
       if (posY >= gridSize || !images[index]) return;
 
       const count = album[1].count;
       const tileSpan = count > 1 ? 2 : 1;
 
-      if (tileSpan === 2) {
-        // Check if we have enough space for a 2x2 tile
-        if (posX + 2 <= gridSize && posY + 2 <= gridSize) {
-          ctx.drawImage(
-            images[index],
-            posX * tileSize,
-            posY * tileSize,
-            tileSize * 2,
-            tileSize * 2
-          );
-          used.add(`${posX},${posY}`);
-          used.add(`${posX + 1},${posY}`);
-          used.add(`${posX},${posY + 1}`);
-          used.add(`${posX + 1},${posY + 1}`);
-          posX += 2;
-        } else {
-          // Not enough space for 2x2, place 1x1
-          ctx.drawImage(
-            images[index],
-            posX * tileSize,
-            posY * tileSize,
-            tileSize,
-            tileSize
-          );
-          used.add(`${posX},${posY}`);
-          posX += 1;
-        }
-      } else {
-        ctx.drawImage(
-          images[index],
-          posX * tileSize,
-          posY * tileSize,
-          tileSize,
-          tileSize
-        );
-        used.add(`${posX},${posY}`);
-        posX += 1;
-      }
-
-      if (posX >= gridSize) {
+      if (posX + tileSpan > gridSize) {
         posX = 0;
         posY++;
       }
+
+      if (posY + tileSpan <= gridSize) {
+        ctx.drawImage(
+          images[index], 
+          posX * tileSize, 
+          posY * tileSize, 
+          tileSize * tileSpan, 
+          tileSize * tileSpan
+        );
+        posX += tileSpan;
+      }
     });
 
-    // Fill remaining spaces
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        if (!used.has(`${x},${y}`)) {
-          const img = images[Math.floor(Math.random() * images.length)];
-          ctx.drawImage(img, x * tileSize, y * tileSize, tileSize, tileSize);
+    // Second pass: fill gaps with 1x1 tiles
+    posX = 0;
+    posY = 0;
+    while (posY < gridSize) {
+      for (let i = 0; i < images.length && posY < gridSize; i++) {
+        if (!ctx.getImageData(posX * tileSize, posY * tileSize, 1, 1).data[3]) {
+          ctx.drawImage(images[i], posX * tileSize, posY * tileSize, tileSize, tileSize);
+        }
+        posX++;
+        if (posX >= gridSize) {
+          posX = 0;
+          posY++;
         }
       }
+      posY++;
     }
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
