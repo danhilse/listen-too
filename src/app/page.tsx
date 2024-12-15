@@ -19,11 +19,27 @@ export default function Home() {
   const [timeRange, setTimeRange] = useState("medium_term");
 
   const handleLogin = () => {
-    sessionStorage.setItem('playlist_config', JSON.stringify({
+    // Store in both session and local storage as backup
+    const config = {
       numberOfSongs: parseInt(songCount),
       timeRange
-    }));
-    initiateSpotifyLogin();
+    };
+    
+    try {
+      // Store in session storage
+      sessionStorage.setItem('playlist_config', JSON.stringify(config));
+      
+      // Backup in local storage
+      localStorage.setItem('playlist_config_backup', JSON.stringify({
+        config,
+        timestamp: Date.now()
+      }));
+      
+      console.log('Stored config:', config); // Debug log
+      initiateSpotifyLogin();
+    } catch (error) {
+      console.error('Error storing config:', error);
+    }
   };
 
   return (

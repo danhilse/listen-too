@@ -12,29 +12,45 @@ export default function CallbackPage() {
     const handleAuth = async () => {
       try {
         console.log('Handling callback...');
-        // If we're on the callback page but the token is in the main URL
         if (window.opener) {
           window.opener.postMessage({ type: 'SPOTIFY_TOKEN', token: window.location.hash }, '*');
           window.close();
           return;
         }
-
+    
         const auth = handleSpotifyRedirect();
         console.log('Auth result:', auth ? 'Token received' : 'No token');
-
+    
         if (auth?.accessToken) {
-          // Get the stored config
-          const storedConfig = sessionStorage.getItem('playlist_config');
+          // Try session storage first
+          let storedConfig = sessionStorage.getItem('playlist_config');
+          
+          // If not in session storage, check local storage backup
+          if (!storedConfig) {
+            const backupStr = localStorage.getItem('playlist_config_backup');
+            if (backupStr) {
+              const backup = JSON.parse(backupStr);
+              // Check if backup is less than 5 minutes old
+              if (Date.now() - backup.timestamp < 5 * 60 * 1000) {
+                storedConfig = JSON.stringify(backup.config);
+                // Restore to session storage
+                sessionStorage.setItem('playlist_config', storedConfig);
+              }
+            }
+          }
+    
           console.log('Retrieved stored config:', storedConfig);
-
+    
           if (!storedConfig) {
             throw new Error('No playlist configuration found');
           }
-
-          // Store the token in sessionStorage
+    
+          // Store the token
           sessionStorage.setItem('spotify_token', auth.accessToken);
           
-          // Redirect to playlist creation
+          // Clear backup after successful auth
+          localStorage.removeItem('playlist_config_backup');
+          
           router.push('/playlist');
         } else {
           throw new Error('No access token received');
@@ -44,7 +60,7 @@ export default function CallbackPage() {
         setError(err instanceof Error ? err.message : 'Authentication failed');
       }
     };
-
+  
     handleAuth();
   }, [router]);
 
