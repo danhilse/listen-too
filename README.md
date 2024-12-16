@@ -2,7 +2,7 @@
 
 A web application that creates Spotify playlists from your most played tracks. Built with Next.js, TypeScript, and Tailwind CSS.
 
-![Listen Too Screenshot](/screenshot.png)
+![Listen Too Screenshot](/public/screenshot.png)
 
 ## Features
 
