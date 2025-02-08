@@ -77,27 +77,7 @@ pnpm dev
 5. Wait for playlist generation
 6. Copy or share the playlist link
 
-## Contributing
-
-Contributions are welcome. Please follow these steps:
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Built by Daniel Hilse
-- Powered by [Spotify Web API](https://developer.spotify.com/documentation/web-api/)
-- UI components from [shadcn/ui](https://ui.shadcn.com/)
-
-## Contact
-
-- Your Name - [LinkedIn](https://linkedin.com/in/yourusername)
-- Project Link: [https://github.com/yourusername/listen-too](https://github.com/yourusername/listen-too)
