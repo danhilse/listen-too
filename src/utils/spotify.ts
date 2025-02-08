@@ -99,43 +99,90 @@ export const TIME_RANGES: TimeRangeOption[] = [
   }
 ];
 
+// Add this to src/utils/spotify.ts
+
+async function makeSpotifyRequest<T>(
+  url: string,
+  token: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Spotify API error: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = `${errorMessage} - ${errorData.error?.message || 'Unknown error'}`;
+    } catch {
+      // Ignore JSON parse error
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+}
 
 export async function getTopSongs(
   token: string,
   timeRange: TimeRangeValue,
   { limit = 20, offset = 0 } = {}
 ): Promise<Track[]> {
-  const response = await fetch(
-    `https://api.spotify.com/v1/me/top/tracks?limit=${limit}&offset=${offset}&time_range=${timeRange}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+  try {
+    // Validate token presence
+    if (!token) {
+      throw new Error('No access token available');
     }
-  );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch top songs');
+    // Add retry logic for transient failures
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const data = await makeSpotifyRequest<TopTracksResponse>(
+          `https://api.spotify.com/v1/me/top/tracks?limit=${limit}&offset=${offset}&time_range=${timeRange}`,
+          token
+        );
+
+        if (!data.items || data.items.length === 0) {
+          throw new Error('No tracks returned from Spotify API');
+        }
+
+        return data.items.map((track: SpotifyTrack) => ({
+          id: track.id,
+          name: track.name,
+          uri: track.uri,
+          artists: track.artists.map(artist => ({
+            ...artist,
+            genres: [],
+            images: []
+          })),
+          album: track.album,
+          source: 'top'
+        }));
+      } catch (error) {
+        lastError = error as Error;
+        // Only retry on 429 (rate limit) or 5xx errors
+        if (error instanceof Error && 
+            !error.message.includes('429') && 
+            !error.message.match(/^Spotify API error: 5\d\d/)) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+
+    throw lastError || new Error('Failed to fetch top songs after retries');
+  } catch (error) {
+    console.error('Error fetching top songs:', error);
+    throw error;
   }
-
-  const data: TopTracksResponse = await response.json();
-  
-  if (!data.items || data.items.length === 0) {
-    throw new Error('No tracks returned from Spotify API');
-  }
-
-  return data.items.map((track: SpotifyTrack) => ({
-    id: track.id,
-    name: track.name,
-    uri: track.uri,
-    artists: track.artists.map(artist => ({
-      ...artist,
-      genres: [], // Will be populated by artist details fetch
-      images: []  // Will be populated by artist details fetch
-    })),
-    album: track.album,
-    source: 'top'
-  }));
 }
 
 export async function loadMoreSongsUntilTarget(

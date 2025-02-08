@@ -8,6 +8,34 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ExternalLink, Copy, CheckCircle2 } from 'lucide-react';
 import type { PlaylistConfig } from '@/types/spotify';
 
+function getStoredToken(): string | null {
+  // Check sessionStorage first
+  let token = sessionStorage.getItem('spotify_token');
+  
+  // If not in sessionStorage, check localStorage
+  if (!token) {
+    const storedAuth = localStorage.getItem('spotify_auth');
+    if (storedAuth) {
+      try {
+        const auth = JSON.parse(storedAuth);
+        if (Date.now() < auth.expiresAt) {
+          token = auth.accessToken;
+          // Sync to sessionStorage if token exists
+          if (token) {
+            sessionStorage.setItem('spotify_token', token);
+          }
+        } else {
+          localStorage.removeItem('spotify_auth');
+        }
+      } catch {
+        localStorage.removeItem('spotify_auth');
+      }
+    }
+  }
+  
+  return token;
+}
+
 export default function PlaylistPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -15,24 +43,33 @@ export default function PlaylistPage() {
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  
+
   useEffect(() => {
     const createUserPlaylist = async () => {
-      const token = sessionStorage.getItem('spotify_token');
-      const configStr = sessionStorage.getItem('playlist_config');
-
-      if (!token || !configStr) {
-        setError('Missing authentication or configuration');
-        return;
-      }
-
       try {
         setIsLoading(true);
+        
+        const token = getStoredToken();
+        const configStr = sessionStorage.getItem('playlist_config');
+  
+        if (!token || !configStr) {
+          throw new Error('Missing authentication or configuration. Please try logging in again.');
+        }
+  
         const config = JSON.parse(configStr) as PlaylistConfig;
+        
         const userResponse = await fetch('https://api.spotify.com/v1/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         if (!userResponse.ok) {
+          if (userResponse.status === 401) {
+            // Token expired or invalid
+            sessionStorage.removeItem('spotify_token');
+            localStorage.removeItem('spotify_auth');
+            throw new Error('Authentication expired. Please log in again.');
+          }
           throw new Error('Failed to fetch user profile');
         }
         
@@ -42,15 +79,25 @@ export default function PlaylistPage() {
           config.timeRange,
           { limit: config.numberOfSongs }
         );
+        
         const { url } = await createPlaylist(token, userData.id, topTracks);
         setPlaylistUrl(url);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create playlist');
+        console.error('Playlist creation error:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to create playlist';
+        setError(errorMessage);
+        
+        // If error suggests auth issues, redirect to home
+        if (errorMessage.toLowerCase().includes('auth')) {
+          sessionStorage.clear();
+          localStorage.removeItem('spotify_auth');
+          router.push('/');
+        }
       } finally {
         setIsLoading(false);
       }
     };
-
+  
     createUserPlaylist();
   }, [router]);
 
