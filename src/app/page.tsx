@@ -17,32 +17,53 @@ import { TIME_RANGES } from '@/utils/spotify';
 export default function Home() {
   const [songCount, setSongCount] = useState("20");
   const [timeRange, setTimeRange] = useState("medium_term");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Store in both session and local storage as backup
-    const config = {
-      numberOfSongs: parseInt(songCount),
-      timeRange
-    };
-    
-    console.log('Starting login process...');
-    console.log('Current sessionStorage:', sessionStorage.getItem('playlist_config'));
-    console.log('Current localStorage backup:', localStorage.getItem('playlist_config_backup'));
-    
+  const handleLogin = async () => {
     try {
+      setIsLoading(true);
+      
+      // Clear any existing storage first
+      sessionStorage.removeItem('playlist_config');
+      localStorage.removeItem('playlist_config_backup');
+      
+      const config = {
+        numberOfSongs: parseInt(songCount),
+        timeRange
+      };
+      
+      console.log('Storing configuration...', config);
+      
       // Store in session storage
       sessionStorage.setItem('playlist_config', JSON.stringify(config));
       
-      // Backup in local storage
-      localStorage.setItem('playlist_config_backup', JSON.stringify({
+      // Store backup in local storage with timestamp
+      const backupData = {
         config,
         timestamp: Date.now()
-      }));
+      };
+      localStorage.setItem('playlist_config_backup', JSON.stringify(backupData));
       
-      console.log('Stored config:', config); // Debug log
+      // Verify storage
+      const storedSession = sessionStorage.getItem('playlist_config');
+      const storedBackup = localStorage.getItem('playlist_config_backup');
+      
+      console.log('Verification - Session Storage:', storedSession);
+      console.log('Verification - Local Storage:', storedBackup);
+      
+      if (!storedSession || !storedBackup) {
+        throw new Error('Failed to store configuration');
+      }
+      
+      // Small delay to ensure storage is complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Initiate Spotify login
       initiateSpotifyLogin();
     } catch (error) {
-      console.error('Error storing config:', error);
+      console.error('Login preparation error:', error);
+      setIsLoading(false);
+      // You might want to show an error message to the user here
     }
   };
 
@@ -103,8 +124,12 @@ export default function Home() {
                 </div>
 
                 <div className="flex justify-center w-full">
-                  <SpotifyButton onClick={handleLogin} />
-                </div>
+        <SpotifyButton 
+          onClick={handleLogin} 
+          disabled={isLoading}
+          text={isLoading ? "Preparing..." : "Continue with Spotify"}
+        />
+      </div>
               </div>
             </div>
           </div>
