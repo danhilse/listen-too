@@ -1,3 +1,4 @@
+// app/callback/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,8 +12,23 @@ export default function CallbackPage() {
   useEffect(() => {
     const handleAuth = async () => {
       try {
-        console.log('Handling callback...');
+        console.log('Starting callback handling...');
+        console.log('Session storage state:', {
+          playlist_config: sessionStorage.getItem('playlist_config'),
+          spotify_token: sessionStorage.getItem('spotify_token')
+        });
+        
+        const backupStr = localStorage.getItem('playlist_config_backup');
+        console.log('Local storage backup state:', backupStr);
+        
+        if (backupStr) {
+          const backup = JSON.parse(backupStr);
+          console.log('Backup timestamp:', new Date(backup.timestamp).toISOString());
+          console.log('Time since backup:', Date.now() - backup.timestamp, 'ms');
+        }
+
         if (window.opener) {
+          console.log('Window opener detected, handling popup flow...');
           window.opener.postMessage({ type: 'SPOTIFY_TOKEN', token: window.location.hash }, '*');
           window.close();
           return;
@@ -24,22 +40,28 @@ export default function CallbackPage() {
         if (auth?.accessToken) {
           // Try session storage first
           let storedConfig = sessionStorage.getItem('playlist_config');
+          console.log('Initial config from session storage:', storedConfig);
           
           // If not in session storage, check local storage backup
           if (!storedConfig) {
+            console.log('No config in session storage, checking backup...');
             const backupStr = localStorage.getItem('playlist_config_backup');
             if (backupStr) {
               const backup = JSON.parse(backupStr);
+              console.log('Found backup config:', backup);
               // Check if backup is less than 5 minutes old
               if (Date.now() - backup.timestamp < 5 * 60 * 1000) {
                 storedConfig = JSON.stringify(backup.config);
                 // Restore to session storage
                 sessionStorage.setItem('playlist_config', storedConfig);
+                console.log('Restored config from backup');
+              } else {
+                console.log('Backup too old:', Date.now() - backup.timestamp, 'ms');
               }
             }
           }
     
-          console.log('Retrieved stored config:', storedConfig);
+          console.log('Final config state:', storedConfig);
     
           if (!storedConfig) {
             throw new Error('No playlist configuration found');
@@ -47,9 +69,11 @@ export default function CallbackPage() {
     
           // Store the token
           sessionStorage.setItem('spotify_token', auth.accessToken);
+          console.log('Stored auth token');
           
           // Clear backup after successful auth
           localStorage.removeItem('playlist_config_backup');
+          console.log('Cleared backup');
           
           router.push('/playlist');
         } else {

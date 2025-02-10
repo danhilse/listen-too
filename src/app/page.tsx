@@ -25,6 +25,10 @@ export default function Home() {
       timeRange
     };
     
+    console.log('Starting login process...');
+    console.log('Current sessionStorage:', sessionStorage.getItem('playlist_config'));
+    console.log('Current localStorage backup:', localStorage.getItem('playlist_config_backup'));
+    
     try {
       // Store in session storage
       sessionStorage.setItem('playlist_config', JSON.stringify(config));
