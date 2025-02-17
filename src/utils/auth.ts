@@ -7,17 +7,21 @@ interface AuthToken {
 
 export function getAuthUrl() {
   validateConfig();
-  console.log('Getting auth URL with redirect URI:', spotifyConfig.redirectUri);
+  const redirectUri = spotifyConfig.redirectUri;
+  console.log('Current origin:', typeof window !== 'undefined' ? window.location.origin : 'SSR');
+  console.log('Using redirect URI:', redirectUri);
   
   const params = new URLSearchParams({
     client_id: spotifyConfig.clientId!,
     response_type: 'token',
-    redirect_uri: spotifyConfig.redirectUri,
+    redirect_uri: redirectUri,
     scope: spotifyConfig.scopes.join(' '),
     show_dialog: 'true'
   });
 
-  return `https://accounts.spotify.com/authorize?${params.toString()}`;
+  const authUrl = `https://accounts.spotify.com/authorize?${params.toString()}`;
+  console.log('Generated auth URL:', authUrl);
+  return authUrl;
 }
 
 export function getStoredAuth(): AuthToken | null {

@@ -10,22 +10,18 @@ function getRedirectUri(): string {
     return process.env.NEXT_PUBLIC_REDIRECT_URI;
   }
 
-  // Check for Vercel deployment URL
-  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-  }
-
-  // In development or if no other URI is available, use localhost
+  // In development, use localhost
   if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:3000';
+    return 'http://localhost:3000/callback';
   }
 
-  // If we're on the client side and no other URI is set, use current origin
+  // In production, use the main domain
   if (typeof window !== 'undefined') {
-    return window.location.origin;
+    return `${window.location.origin}/callback`;
   }
 
-  throw new Error('No redirect URI available');
+  // Fallback for SSR in production
+  return 'https://www.listen-too.app/callback';
 }
 
 export const spotifyConfig: SpotifyConfig = {
