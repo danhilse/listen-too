@@ -24,18 +24,31 @@ export async function fetchTopTracks(
   const maxPerRequest = 50;
   let offset = 0;
 
+  console.log('[spotify] Fetching top tracks:', { timePeriod, limit });
+
   while (tracks.length < limit) {
     const fetchLimit = Math.min(maxPerRequest, limit - tracks.length);
-    const response = await fetch(
-      `${SPOTIFY_API_BASE}/me/top/tracks?time_range=${timePeriod}&limit=${fetchLimit}&offset=${offset}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    const url = `${SPOTIFY_API_BASE}/me/top/tracks?time_range=${timePeriod}&limit=${fetchLimit}&offset=${offset}`;
+    console.log('[spotify] Fetching:', url);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[spotify] Top tracks error:', response.status, errorText);
       throw new Error(`Failed to fetch top tracks: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log('[spotify] Top tracks response items:', data.items?.length || 0);
+
+    if (!data.items) {
+      console.error('[spotify] No items in response:', data);
+      break;
+    }
+
     tracks.push(...data.items);
 
     if (data.items.length < fetchLimit) {
@@ -45,6 +58,7 @@ export async function fetchTopTracks(
     offset += fetchLimit;
   }
 
+  console.log('[spotify] Total top tracks fetched:', tracks.length);
   return tracks;
 }
 
@@ -56,6 +70,8 @@ export async function fetchLikedTracks(
   const cutoffDays = TIME_PERIOD_DAYS[timePeriod];
   const cutoffDate = cutoffDays ? new Date(Date.now() - cutoffDays * 24 * 60 * 60 * 1000) : null;
 
+  console.log('[spotify] Fetching liked tracks:', { timePeriod, targetCount, cutoffDays, cutoffDate });
+
   const tracks: Track[] = [];
   const maxPerRequest = 50;
   let offset = 0;
@@ -63,23 +79,33 @@ export async function fetchLikedTracks(
   const maxToFetch = cutoffDate ? targetCount * 4 : targetCount;
 
   while (tracks.length < targetCount && offset < maxToFetch) {
-    const response = await fetch(
-      `${SPOTIFY_API_BASE}/me/tracks?limit=${maxPerRequest}&offset=${offset}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    const url = `${SPOTIFY_API_BASE}/me/tracks?limit=${maxPerRequest}&offset=${offset}`;
+    console.log('[spotify] Fetching:', url);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[spotify] Liked tracks error:', response.status, errorText);
       throw new Error(`Failed to fetch liked tracks: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log('[spotify] Liked tracks response items:', data.items?.length || 0);
+
+    if (!data.items) {
+      console.error('[spotify] No items in response:', data);
+      break;
+    }
 
     for (const item of data.items as SavedTrack[]) {
       // If we have a cutoff date, check if track was added after it
       if (cutoffDate) {
         const addedAt = new Date(item.added_at);
         if (addedAt < cutoffDate) {
-          // Tracks are sorted by added_at desc, so we can stop
+          console.log('[spotify] Hit cutoff date, stopping. Found:', tracks.length);
           return tracks.slice(0, targetCount);
         }
       }
@@ -98,6 +124,7 @@ export async function fetchLikedTracks(
     offset += maxPerRequest;
   }
 
+  console.log('[spotify] Total liked tracks fetched:', tracks.length);
   return tracks.slice(0, targetCount);
 }
 
@@ -131,11 +158,19 @@ export async function addTracksToPlaylist(
   playlistId: string,
   trackUris: string[]
 ): Promise<void> {
+  console.log('[spotify] Adding tracks to playlist:', playlistId, 'count:', trackUris.length);
+
+  if (trackUris.length === 0) {
+    console.log('[spotify] No tracks to add, skipping');
+    return;
+  }
+
   // Spotify allows max 100 tracks per request
   const chunkSize = 100;
 
   for (let i = 0; i < trackUris.length; i += chunkSize) {
     const chunk = trackUris.slice(i, i + chunkSize);
+    console.log('[spotify] Adding chunk:', i, 'to', i + chunk.length);
 
     const response = await fetch(
       `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks`,
@@ -150,7 +185,14 @@ export async function addTracksToPlaylist(
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[spotify] Add tracks error:', response.status, errorText);
       throw new Error(`Failed to add tracks: ${response.status}`);
     }
+
+    const result = await response.json();
+    console.log('[spotify] Add tracks result:', result);
   }
+
+  console.log('[spotify] All tracks added successfully');
 }
