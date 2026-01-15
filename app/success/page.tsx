@@ -63,10 +63,20 @@ function SuccessContent() {
   const [embedLoading, setEmbedLoading] = useState(true);
 
   // Cycling state
-  const [bgImages, setBgImages] = useState<string[]>(['/bg/h full.webp']);
+  const [bgImages, setBgImages] = useState<string[]>([]);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
   const [bgIndex, setBgIndex] = useState(0);
   const [cyclingComplete, setCyclingComplete] = useState(false);
   const [showFirst, setShowFirst] = useState(true);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
+  // Minimum loading time (2.5 seconds)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetch and randomize cycle images on mount
   useEffect(() => {
@@ -75,18 +85,36 @@ function SuccessContent() {
       .then((data: { images?: string[] }) => {
         if (data.images && data.images.length > 0) {
           const randomized = shuffleArray(data.images);
-          // Don't end on a specific image - just cycle through all and stop randomly
           setBgImages(randomized);
+
+          // Preload first few images before starting
+          const preloadPromises = randomized.slice(0, 5).map(src => {
+            return new Promise<void>((resolve) => {
+              const img = new window.Image();
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+              img.src = src;
+            });
+          });
+
+          Promise.all(preloadPromises).then(() => {
+            setImagesLoaded(true);
+          });
+        } else {
+          // No images, skip cycling
+          setBgImages(['/bg/h full.webp']);
+          setImagesLoaded(true);
         }
       })
       .catch(() => {
-        // Keep default image if fetch fails
-        setCyclingComplete(true);
+        setBgImages(['/bg/h full.webp']);
+        setImagesLoaded(true);
       });
   }, []);
 
-  // Preload upcoming images
+  // Preload upcoming images during cycling
   useEffect(() => {
+    if (!imagesLoaded) return;
     const preloadCount = 3;
     for (let i = 1; i <= preloadCount; i++) {
       const nextIndex = bgIndex + i;
@@ -95,20 +123,33 @@ function SuccessContent() {
         img.src = bgImages[nextIndex];
       }
     }
-  }, [bgIndex, bgImages]);
+  }, [bgIndex, bgImages, imagesLoaded]);
 
-  // Rapid image cycling - runs for ~2-3 seconds then stops
+  // Rapid image cycling - only starts after images are loaded
   useEffect(() => {
-    if (bgImages.length > 1 && bgIndex < bgImages.length - 1) {
+    if (!imagesLoaded || bgImages.length <= 1) return;
+
+    // Stop cycling when min time elapsed and we've cycled through enough
+    if (minTimeElapsed && bgIndex > 10) {
+      setCyclingComplete(true);
+      return;
+    }
+
+    if (bgIndex < bgImages.length - 1) {
       const timer = setTimeout(() => {
         setShowFirst(prev => !prev);
         setBgIndex(bgIndex + 1);
-      }, 120);
+      }, 100);
       return () => clearTimeout(timer);
-    } else if (bgIndex === bgImages.length - 1) {
-      setCyclingComplete(true);
+    } else {
+      // Loop back if we haven't hit min time yet
+      if (!minTimeElapsed) {
+        setBgIndex(0);
+      } else {
+        setCyclingComplete(true);
+      }
     }
-  }, [bgIndex, bgImages]);
+  }, [bgIndex, bgImages, imagesLoaded, minTimeElapsed]);
 
   // Auto-copy to clipboard once cycling completes
   useEffect(() => {
@@ -200,29 +241,43 @@ function SuccessContent() {
     <div className="relative min-h-screen overflow-hidden bg-[#0d1117]">
       {/* Cycling background image */}
       <div className="absolute inset-y-0 left-[80%] sm:left-[65%] md:left-[50%] lg:left-[40%] right-[-30%]">
-        {/* Two-layer crossfade system */}
-        <div
-          className={`absolute inset-0 transition-opacity duration-100 ${showFirst ? 'opacity-100' : 'opacity-0'}`}
-        >
+        {/* Show fallback while loading */}
+        {!imagesLoaded && (
           <Image
-            src={bgImages[showFirst ? bgIndex : Math.max(0, bgIndex - 1)]}
+            src="/bg/h full.webp"
             alt=""
             fill
             className="object-cover object-center"
             priority
           />
-        </div>
-        <div
-          className={`absolute inset-0 transition-opacity duration-100 ${showFirst ? 'opacity-0' : 'opacity-100'}`}
-        >
-          <Image
-            src={bgImages[showFirst ? Math.max(0, bgIndex - 1) : bgIndex]}
-            alt=""
-            fill
-            className="object-cover object-center"
-            priority
-          />
-        </div>
+        )}
+        {/* Two-layer crossfade system - only when images are loaded */}
+        {imagesLoaded && bgImages.length > 0 && (
+          <>
+            <div
+              className={`absolute inset-0 transition-opacity duration-75 ${showFirst ? 'opacity-100' : 'opacity-0'}`}
+            >
+              <Image
+                src={bgImages[showFirst ? bgIndex % bgImages.length : Math.max(0, (bgIndex - 1) % bgImages.length)]}
+                alt=""
+                fill
+                className="object-cover object-center"
+                priority
+              />
+            </div>
+            <div
+              className={`absolute inset-0 transition-opacity duration-75 ${showFirst ? 'opacity-0' : 'opacity-100'}`}
+            >
+              <Image
+                src={bgImages[showFirst ? Math.max(0, (bgIndex - 1) % bgImages.length) : bgIndex % bgImages.length]}
+                alt=""
+                fill
+                className="object-cover object-center"
+                priority
+              />
+            </div>
+          </>
+        )}
         {/* Gradients */}
         <div className="absolute inset-y-0 left-0 w-48 bg-gradient-to-r from-[#0d1117] to-transparent z-10" />
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#0d1117]/60 to-transparent z-10" />
