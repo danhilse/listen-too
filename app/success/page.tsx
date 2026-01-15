@@ -139,7 +139,7 @@ function SuccessContent() {
       const timer = setTimeout(() => {
         setShowFirst(prev => !prev);
         setBgIndex(bgIndex + 1);
-      }, 100);
+      }, 180); // Slower, smoother cycling
       return () => clearTimeout(timer);
     } else {
       // Loop back if we haven't hit min time yet
@@ -255,10 +255,10 @@ function SuccessContent() {
         {imagesLoaded && bgImages.length > 0 && (
           <>
             <div
-              className={`absolute inset-0 transition-opacity duration-75 ${showFirst ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 transition-opacity duration-150 ${showFirst ? 'opacity-100' : 'opacity-0'}`}
             >
               <Image
-                src={bgImages[showFirst ? bgIndex % bgImages.length : Math.max(0, (bgIndex - 1) % bgImages.length)]}
+                src={bgImages[showFirst ? bgIndex % bgImages.length : Math.max(0, (bgIndex - 1 + bgImages.length) % bgImages.length)]}
                 alt=""
                 fill
                 className="object-cover object-center"
@@ -266,10 +266,10 @@ function SuccessContent() {
               />
             </div>
             <div
-              className={`absolute inset-0 transition-opacity duration-75 ${showFirst ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute inset-0 transition-opacity duration-150 ${showFirst ? 'opacity-0' : 'opacity-100'}`}
             >
               <Image
-                src={bgImages[showFirst ? Math.max(0, (bgIndex - 1) % bgImages.length) : bgIndex % bgImages.length]}
+                src={bgImages[showFirst ? (bgIndex - 1 + bgImages.length) % bgImages.length : bgIndex % bgImages.length]}
                 alt=""
                 fill
                 className="object-cover object-center"

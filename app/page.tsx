@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { TRACK_COUNT_OPTIONS } from './lib/constants';
@@ -9,6 +9,16 @@ import Image from 'next/image';
 
 // Static background image for landing page
 const BG_IMAGE = '/bg/h full.webp';
+
+// Shuffle array helper
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 
 // Spotify Icon Component
 function SpotifyIcon({ className = '' }: { className?: string }) {
@@ -36,9 +46,63 @@ function HomeContent() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('short_term');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Cycling state (triggered on button click)
+  const [bgImages, setBgImages] = useState<string[]>([]);
+  const [isCycling, setIsCycling] = useState(false);
+  const [bgIndex, setBgIndex] = useState(0);
+  const [showFirst, setShowFirst] = useState(true);
+  const redirectUrl = useRef<string>('');
+
+  // Preload cycle images on mount (so they're ready when button is clicked)
+  useEffect(() => {
+    fetch('/api/cycle-images')
+      .then(res => res.json())
+      .then((data: { images?: string[] }) => {
+        if (data.images && data.images.length > 0) {
+          const randomized = shuffleArray(data.images);
+          setBgImages(randomized);
+          // Preload first batch
+          randomized.slice(0, 8).forEach(src => {
+            const img = new window.Image();
+            img.src = src;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Image cycling effect (only runs when isCycling is true)
+  useEffect(() => {
+    if (!isCycling || bgImages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setShowFirst(prev => !prev);
+      setBgIndex(prev => (prev + 1) % bgImages.length);
+    }, 180); // Slower cycling speed
+
+    return () => clearTimeout(timer);
+  }, [isCycling, bgIndex, bgImages]);
+
+  // Redirect after cycling starts
+  useEffect(() => {
+    if (isCycling && redirectUrl.current) {
+      const timer = setTimeout(() => {
+        window.location.href = redirectUrl.current;
+      }, 1500); // Show cycling for 1.5s before redirect
+      return () => clearTimeout(timer);
+    }
+  }, [isCycling]);
+
   const handleCreatePlaylist = () => {
     setIsLoading(true);
-    window.location.href = `/api/auth/login?trackCount=${trackCount}&timePeriod=${timePeriod}`;
+    redirectUrl.current = `/api/auth/login?trackCount=${trackCount}&timePeriod=${timePeriod}`;
+
+    if (bgImages.length > 0) {
+      setIsCycling(true);
+    } else {
+      // No images loaded, redirect immediately
+      window.location.href = redirectUrl.current;
+    }
   };
 
   const getErrorMessage = (errorCode: string) => {
@@ -62,13 +126,43 @@ function HomeContent() {
     <div className="relative min-h-screen overflow-hidden bg-[#0d1117]">
       {/* Background image - positioned to shift left edge off-screen */}
       <div className="absolute inset-y-0 left-[80%] sm:left-[65%] md:left-[50%] lg:left-[40%] right-[-30%]">
-        <Image
-          src={BG_IMAGE}
-          alt="Person enjoying music"
-          fill
-          className="object-cover object-center"
-          priority
-        />
+        {/* Static image (shown when not cycling) */}
+        {!isCycling && (
+          <Image
+            src={BG_IMAGE}
+            alt="Person enjoying music"
+            fill
+            className="object-cover object-center"
+            priority
+          />
+        )}
+        {/* Cycling images (shown when loading) */}
+        {isCycling && bgImages.length > 0 && (
+          <>
+            <div
+              className={`absolute inset-0 transition-opacity duration-150 ${showFirst ? 'opacity-100' : 'opacity-0'}`}
+            >
+              <Image
+                src={bgImages[showFirst ? bgIndex : (bgIndex - 1 + bgImages.length) % bgImages.length]}
+                alt=""
+                fill
+                className="object-cover object-center"
+                priority
+              />
+            </div>
+            <div
+              className={`absolute inset-0 transition-opacity duration-150 ${showFirst ? 'opacity-0' : 'opacity-100'}`}
+            >
+              <Image
+                src={bgImages[showFirst ? (bgIndex - 1 + bgImages.length) % bgImages.length : bgIndex]}
+                alt=""
+                fill
+                className="object-cover object-center"
+                priority
+              />
+            </div>
+          </>
+        )}
         {/* Soft edge gradient to blend into background */}
         <div className="absolute inset-y-0 left-0 w-48 bg-gradient-to-r from-[#0d1117] to-transparent z-10" />
         {/* Bottom gradient for depth */}
