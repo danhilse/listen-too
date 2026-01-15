@@ -240,7 +240,7 @@ function SuccessContent() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0d1117]">
       {/* Cycling background image */}
-      <div className="absolute inset-y-0 left-[80%] sm:left-[70%] md:left-[55%] lg:left-[45%] right-[-30%]">
+      <div className="absolute inset-y-0 left-[70%] sm:left-[55%] md:left-[40%] lg:left-[30%] right-[-30%]">
         {/* Show fallback while loading */}
         {!imagesLoaded && (
           <Image
