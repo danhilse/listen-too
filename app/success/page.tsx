@@ -194,7 +194,7 @@ function SuccessContent() {
     return (
       <div className="relative min-h-screen overflow-hidden bg-[#0d1117]">
         {/* Background image */}
-        <div className="absolute inset-y-0 left-[80%] sm:left-[65%] md:left-[50%] lg:left-[40%] right-[-30%]">
+        <div className="absolute inset-y-0 left-[70%] sm:left-[55%] md:left-[40%] lg:left-[30%] right-[-30%]">
           <Image
             src="/bg/h full.webp"
             alt=""
