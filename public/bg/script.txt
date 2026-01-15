@@ -1,0 +1,1 @@
+for f in /Users/echoroberts/Documents/dev/React/listen-too/public/bg/*.png; do ffmpeg -y -i "$f" -c:v libwebp -quality 95 -compression_level 6 "/Users/echoroberts/Documents/dev/React/listen-too/public/bg/cycle/$(basename "${f%.png}.webp")"; done

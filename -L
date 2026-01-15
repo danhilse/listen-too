@@ -1,0 +1,39 @@
+.
+├── -I
+├── -L
+├── 3
+├── app
+│   ├── api
+│   │   ├── auth
+│   │   │   └── login
+│   │   │       └── route.ts
+│   │   ├── cycle-images
+│   │   │   └── route.ts
+│   │   └── playlist
+│   │       └── create
+│   │           └── route.ts
+│   ├── callback
+│   │   └── route.ts
+│   ├── favicon.ico
+│   ├── globals.css
+│   ├── layout.tsx
+│   ├── lib
+│   │   ├── constants.ts
+│   │   ├── playlist-utils.ts
+│   │   ├── session.ts
+│   │   ├── spotify.ts
+│   │   └── types.ts
+│   ├── page.tsx
+│   └── success
+│       └── page.tsx
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.ts
+├── node_modules|.next
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── README.md
+└── tsconfig.json
+
+11 directories, 26 files
