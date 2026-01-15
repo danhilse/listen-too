@@ -240,7 +240,7 @@ function SuccessContent() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0d1117]">
       {/* Cycling background image */}
-      <div className="absolute inset-y-0 left-[80%] sm:left-[65%] md:left-[50%] lg:left-[40%] right-[-30%]">
+      <div className="absolute inset-y-0 left-[80%] sm:left-[70%] md:left-[55%] lg:left-[45%] right-[-30%]">
         {/* Show fallback while loading */}
         {!imagesLoaded && (
           <Image
@@ -296,7 +296,7 @@ function SuccessContent() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col justify-center max-w-xl py-12">
+        <main className="flex-1 flex flex-col justify-center max-w-2xl py-12">
           {/* Loading state - shown while cycling */}
           {!cyclingComplete && (
             <div className="animate-fade-in">
